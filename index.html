@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ElectroBotics · Attendance & Fees</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#061f22; --bg2:#0a373a; --card:#ffffff; --ink:#0a373a; --muted:#5a7374;
+    --amber:#e8a53d; --amber-d:#9c6a12; --line:#d7e3e3; --good:#2f9e6f; --bad:#d2614b;
+    --warn:#e8a53d;
+    --mono:'JetBrains Mono',monospace; --sans:'DM Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);background:
+    radial-gradient(1200px 600px at 80% -10%, #0a373a 0%, transparent 60%),
+    var(--bg);color:#eaf3f3;min-height:100vh}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px}
+  header.app{display:flex;align-items:center;justify-content:space-between;
+    background:var(--card);color:var(--ink);border-radius:14px;padding:14px 20px;margin-bottom:18px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:38px;height:38px;border-radius:9px;background:var(--bg2);color:#fff;
+    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:18px}
+  .brand h1{font-size:17px;margin:0;letter-spacing:-.2px}
+  .brand small{display:block;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+  .who{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+  .who b{color:var(--ink);display:block;font-size:13px}
+  .btn{font-family:var(--sans);font-weight:600;border:0;border-radius:9px;padding:10px 16px;
+    cursor:pointer;font-size:14px;transition:transform .05s ease, filter .15s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn.amber{background:var(--amber);color:#3a2606}
+  .btn.amber:hover{filter:brightness(1.05)}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .btn.sm{padding:6px 12px;font-size:13px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .tab{background:rgba(255,255,255,.06);color:#cfe3e3;border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;padding:8px 16px;cursor:pointer;font-weight:600;font-size:14px}
+  .tab.on{background:var(--amber);color:#3a2606;border-color:var(--amber)}
+  .card{background:var(--card);color:var(--ink);border-radius:14px;padding:20px;margin-bottom:16px;
+    box-shadow:0 8px 24px rgba(0,0,0,.18)}
+  .card h2{margin:0 0 4px;font-size:18px}
+  .card .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  label.f{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 6px;font-weight:600}
+  select,input[type=date],input[type=number],input[type=text]{
+    font-family:var(--sans);font-size:15px;padding:10px 12px;border:1px solid var(--line);
+    border-radius:9px;width:100%;background:#fbfdfd;color:var(--ink)}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row > div{flex:1;min-width:200px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  td.mono,th.mono{font-family:var(--mono)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.present,.pill.paid{background:#e3f4ec;color:var(--good)}
+  .pill.absent{background:#fae6e1;color:var(--bad)}
+  .pill.leave,.pill.partial{background:#fdf0d8;color:var(--amber-d)}
+  .pill.pending{background:#fae6e1;color:var(--bad)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:8px 14px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)}
+  .seg button.present.on{background:var(--good);color:#fff}
+  .seg button.absent.on{background:var(--bad);color:#fff}
+  .seg button.leave.on{background:var(--amber);color:#3a2606}
+  .amberbox{font-family:var(--mono);font-weight:700;color:var(--amber-d);background:#fdf3e0;
+    padding:2px 8px;border-radius:6px;display:inline-block}
+  .stat{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .stat .s{flex:1;min-width:140px;background:#f4f9f9;border:1px solid var(--line);border-radius:11px;padding:14px}
+  .stat .s .n{font-family:var(--mono);font-weight:700;font-size:22px;color:var(--ink)}
+  .stat .s .n.amber{color:var(--amber-d)}
+  .stat .s .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .bar{height:10px;border-radius:6px;background:#eef4f4;overflow:hidden;margin-top:6px}
+  .bar > span{display:block;height:100%;background:linear-gradient(90deg,var(--amber),#f2c879)}
+  .wa{display:inline-flex;align-items:center;gap:6px;background:#25d366;color:#063d20;
+    font-weight:700;padding:7px 12px;border-radius:8px;text-decoration:none;font-size:13px}
+  .empty{color:var(--muted);text-align:center;padding:30px;font-size:14px}
+  .login{max-width:420px;margin:8vh auto}
+  .login .card{text-align:center;padding:34px}
+  .login .logo-lg{width:64px;height:64px;border-radius:14px;background:var(--bg2);color:#fff;
+    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:28px;margin:0 auto 16px}
+  .login p{color:var(--muted);font-size:14px;line-height:1.55}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);
+    color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.3);
+    opacity:0;pointer-events:none;transition:opacity .2s}
+  .toast.show{opacity:1}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line);
+    border-top-color:var(--amber);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hidden{display:none!important}
+  @media(max-width:560px){.who b{font-size:12px}.brand h1{font-size:15px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <div id="login" class="login">
+    <div class="card">
+      <div class="logo-lg">EB</div>
+      <h2>ElectroBotics</h2>
+      <div class="sub">Attendance &amp; Fees</div>
+      <p id="loginMsg">Checking your Google sign-in…<br><span class="spin"></span></p>
+      <button id="retryBtn" class="btn amber hidden" onclick="boot()">Retry</button>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <header class="app">
+      <div class="brand">
+        <div class="logo">EB</div>
+        <div><h1>Attendance &amp; Fees</h1><small>ElectroBotics</small></div>
+      </div>
+      <div class="who"><b id="whoName">—</b><span id="whoRole"></span></div>
+    </header>
+
+    <div class="tabs" id="tabs"></div>
+
+    <!-- TUTOR: mark attendance -->
+    <section id="view-mark" class="view hidden">
+      <div class="card">
+        <h2>Mark attendance</h2>
+        <div class="sub">Choose a batch and date, then set each student’s status.</div>
+        <div class="row">
+          <div>
+            <label class="f">Batch</label>
+            <select id="mBatch" onchange="loadRoster()"></select>
+          </div>
+          <div>
+            <label class="f">Date</label>
+            <input type="date" id="mDate" onchange="loadRoster()" />
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div id="roster"><div class="empty">Pick a batch to load students.</div></div>
+        <div id="saveBar" class="hidden" style="margin-top:14px;text-align:right">
+          <button class="btn amber" onclick="saveAttendance()">Save attendance</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN: attendance trends -->
+    <section id="view-attendance" class="view hidden">
+      <div class="card">
+        <h2>Attendance trends</h2>
+        <div class="sub">Per month — overall, or filtered to one student.</div>
+        <div class="row">
+          <div>
+            <label class="f">Student</label>
+            <select id="aStudent" onchange="loadTrend()"><option value="">All students (overall)</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="trendCard"><div class="empty">Loading…</div></div>
+    </section>
+
+    <!-- ADMIN: payments -->
+    <section id="view-payments" class="view hidden">
+      <div class="card">
+        <h2>Payments by month</h2>
+        <div class="sub">Received vs pending across the suite.</div>
+        <div id="paySummary"><div class="empty">Loading…</div></div>
+      </div>
+      <div class="card">
+        <h2>Pending payments</h2>
+        <div class="sub">Tap “Remind on WhatsApp” to open a pre-filled message to the parent.</div>
+        <div id="pendingTable"><div class="empty">Loading…</div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ============ CONFIG ============
+// Paste your Apps Script Web App URL here after deploying (ends with /exec):
+const API = "PASTE_YOUR_WEB_APP_URL_HERE";
+// ================================
+
+let ME = null;
+let roster = [];           // current roster for marking
+let markState = {};        // id -> status
+
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+
+// GET via JSONP (avoids CORS; Apps Script supports callback param poorly, so use fetch text)
+async function apiGet(params){
+  const url = API + "?" + new URLSearchParams(params).toString();
+  const res = await fetch(url, {method:'GET'});
+  return res.json();
+}
+// POST as text/plain to dodge CORS preflight that Apps Script can't answer
+async function apiPost(body){
+  const res = await fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
+  return res.json();
+}
+
+async function boot(){
+  document.getElementById('retryBtn').classList.add('hidden');
+  document.getElementById('loginMsg').innerHTML = 'Checking your Google sign-in…<br><span class="spin"></span>';
+  if(API.includes("PASTE_YOUR")){
+    document.getElementById('loginMsg').innerHTML = "Set the API URL in index.html first (the Apps Script /exec link).";
+    return;
+  }
+  try{
+    const r = await apiGet({action:'whoami'});
+    if(!r.ok){
+      let m = r.error==='not_authorized'
+        ? `Signed in as <b>${r.email||'?'}</b>, but this address isn’t in the Users tab. Ask the admin to add you.`
+        : "You’re not signed in to Google. Open this page while signed in to your Google account.";
+      document.getElementById('loginMsg').innerHTML = m;
+      document.getElementById('retryBtn').classList.remove('hidden');
+      return;
+    }
+    ME = r;
+    startApp();
+  }catch(err){
+    document.getElementById('loginMsg').innerHTML = "Couldn’t reach the backend. Check the API URL and that the Web App is deployed for your account.";
+    document.getElementById('retryBtn').classList.remove('hidden');
+  }
+}
+
+function startApp(){
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('whoName').textContent = ME.email;
+  document.getElementById('whoRole').textContent = ME.role.toUpperCase();
+
+  // Build tabs by role
+  const tabs = [];
+  if(ME.role==='tutor' || ME.role==='admin') tabs.push(['view-mark','Mark attendance']);
+  if(ME.role==='admin'){ tabs.push(['view-attendance','Attendance trends']); tabs.push(['view-payments','Payments']); }
+  const tabBar = document.getElementById('tabs');
+  tabBar.innerHTML='';
+  tabs.forEach(([id,label],i)=>{
+    const b=document.createElement('button');
+    b.className='tab'+(i===0?' on':''); b.textContent=label;
+    b.onclick=()=>showView(id,b);
+    tabBar.appendChild(b);
+  });
+  showView(tabs[0][0], tabBar.firstChild);
+
+  // default date = today
+  document.getElementById('mDate').value = new Date().toISOString().slice(0,10);
+  loadBatches();
+}
+
+function showView(id, btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  if(id==='view-attendance') initTrendStudents();
+  if(id==='view-payments') loadPayments();
+}
+
+// ---------- batches & roster ----------
+async function loadBatches(){
+  const r = await apiGet({action:'batches'});
+  if(!r.ok) return;
+  const sel = document.getElementById('mBatch');
+  sel.innerHTML = '<option value="">Select a batch…</option>' +
+    r.batches.map(b=>`<option>${b}</option>`).join('');
+}
+
+async function loadRoster(){
+  const batch = document.getElementById('mBatch').value;
+  const date = document.getElementById('mDate').value;
+  const box = document.getElementById('roster');
+  if(!batch){ box.innerHTML='<div class="empty">Pick a batch to load students.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
+  box.innerHTML='<div class="empty"><span class="spin"></span> Loading roster…</div>';
+  const [s, prior] = await Promise.all([
+    apiGet({action:'students', batch}),
+    apiGet({action:'attendanceForDate', batch, date})
+  ]);
+  roster = s.students || [];
+  markState = {};
+  const marked = prior.marked || {};
+  roster.forEach(st=>{ markState[st.id] = marked[st.id] || 'Present'; });
+  renderRoster();
+}
+
+function renderRoster(){
+  if(!roster.length){ document.getElementById('roster').innerHTML='<div class="empty">No active students in this batch.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
+  let html = '<table><thead><tr><th>Student</th><th class="mono">ID</th><th>Status</th></tr></thead><tbody>';
+  roster.forEach(st=>{
+    const s = markState[st.id];
+    html += `<tr><td>${st.name}</td><td class="mono">${st.id}</td><td>
+      <div class="seg">
+        <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')">Present</button>
+        <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')">Absent</button>
+        <button class="leave ${s==='Leave'?'on':''}" onclick="setStatus('${st.id}','Leave')">Leave</button>
+      </div></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('roster').innerHTML = html;
+  document.getElementById('saveBar').classList.remove('hidden');
+}
+function setStatus(id,status){ markState[id]=status; renderRoster(); }
+
+async function saveAttendance(){
+  const date = document.getElementById('mDate').value;
+  const records = roster.map(st=>({id:st.id, status:markState[st.id]}));
+  toast('Saving…');
+  const r = await apiPost({action:'markAttendance', date, records});
+  toast(r.ok ? `Saved ${r.saved} students for ${date}` : 'Save failed: '+(r.error||'?'));
+}
+
+// ---------- attendance trends ----------
+async function initTrendStudents(){
+  const sel = document.getElementById('aStudent');
+  if(sel.dataset.loaded) { loadTrend(); return; }
+  const r = await apiGet({action:'students'});
+  (r.students||[]).forEach(st=>{
+    const o=document.createElement('option'); o.value=st.id; o.textContent=`${st.name} (${st.id})`; sel.appendChild(o);
+  });
+  sel.dataset.loaded='1';
+  loadTrend();
+}
+async function loadTrend(){
+  const studentId = document.getElementById('aStudent').value;
+  const card = document.getElementById('trendCard');
+  card.innerHTML='<div class="empty"><span class="spin"></span> Loading…</div>';
+  const r = await apiGet({action:'attendanceTrend', studentId});
+  if(!r.ok){ card.innerHTML='<div class="empty">'+(r.error||'Error')+'</div>'; return; }
+  const t = r.trend||[];
+  if(!t.length){ card.innerHTML='<div class="empty">No attendance recorded yet.</div>'; return; }
+  const totP=t.reduce((a,x)=>a+x.present,0), totT=t.reduce((a,x)=>a+x.total,0);
+  let html = `<div class="stat">
+    <div class="s"><div class="n">${totT}</div><div class="l">Sessions logged</div></div>
+    <div class="s"><div class="n amber">${totT?Math.round(totP/totT*100):0}%</div><div class="l">Overall present</div></div>
+  </div><table><thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>Leave</th><th>%</th><th></th></tr></thead><tbody>`;
+  t.forEach(x=>{
+    html += `<tr><td class="mono">${x.month}</td><td>${x.present}</td><td>${x.absent}</td><td>${x.leave}</td>
+      <td><span class="amberbox">${x.pct}%</span></td>
+      <td style="width:160px"><div class="bar"><span style="width:${x.pct}%"></span></div></td></tr>`;
+  });
+  html+='</tbody></table>';
+  card.innerHTML=html;
+}
+
+// ---------- payments ----------
+async function loadPayments(){
+  const sum=document.getElementById('paySummary'), pend=document.getElementById('pendingTable');
+  sum.innerHTML='<div class="empty"><span class="spin"></span> Loading…</div>';
+  const r = await apiGet({action:'payments'});
+  if(!r.ok){ sum.innerHTML='<div class="empty">'+(r.error||'Error')+'</div>'; return; }
+  const s=r.summary||[];
+  if(!s.length){ sum.innerHTML='<div class="empty">No payment rows yet.</div>'; }
+  else{
+    let html='<table><thead><tr><th>Month</th><th>Total due</th><th>Received</th><th>Pending</th><th>Collected</th></tr></thead><tbody>';
+    s.forEach(m=>{
+      html+=`<tr><td class="mono">${m.month}</td>
+        <td class="mono">₹${m.due.toLocaleString('en-IN')}</td>
+        <td class="mono">₹${m.paid.toLocaleString('en-IN')}</td>
+        <td class="mono">₹${m.pending.toLocaleString('en-IN')}</td>
+        <td style="min-width:140px"><span class="amberbox">${m.pct}%</span>
+        <div class="bar"><span style="width:${m.pct}%"></span></div></td></tr>`;
+    });
+    html+='</tbody></table>'; sum.innerHTML=html;
+  }
+  const p=r.pending||[];
+  if(!p.length){ pend.innerHTML='<div class="empty">Nothing pending. All caught up.</div>'; return; }
+  let ph='<table><thead><tr><th>Month</th><th>Student</th><th>Batch</th><th>Balance</th><th></th></tr></thead><tbody>';
+  p.forEach(x=>{
+    const wa = x.wa ? `<a class="wa" href="${x.wa}" target="_blank" rel="noopener">Remind on WhatsApp</a>`
+                    : `<span class="pill pending">No contact</span>`;
+    ph+=`<tr><td class="mono">${x.month}</td><td>${x.name||x.studentId}</td><td>${x.batch}</td>
+      <td class="mono">₹${x.balance.toLocaleString('en-IN')}</td><td>${wa}</td></tr>`;
+  });
+  ph+='</tbody></table>'; pend.innerHTML=ph;
+}
+
+boot();
+</script>
+</body>
+</html>

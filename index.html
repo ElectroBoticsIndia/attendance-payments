@@ -490,6 +490,8 @@ function onTrendBatchChange(){
   loadTrend();
 }
 let trendChartObj = null;
+let lastTrendData = null;   // cached for redraw on viewport change
+let lastWasMobile = (window.innerWidth<=560);
 async function loadTrend(){
   const studentId = document.getElementById('aStudent').value;
   const batch = document.getElementById('aBatch').value;
@@ -517,6 +519,7 @@ async function loadTrend(){
 }
 
 function drawTrendChart(t){
+  lastTrendData = t;
   const cv = document.getElementById('trendChart');
   if(!cv || typeof Chart==='undefined') return;
   if(trendChartObj){ trendChartObj.destroy(); trendChartObj=null; }
@@ -537,7 +540,7 @@ function drawTrendChart(t){
         yAxisID:'y2', tension:.3, pointRadius:4, fill:false }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ font:{family:'DM Sans'} } } },
+      plugins:{ legend:{ position:'bottom', align: (window.innerWidth<=560 ? 'start' : 'center'), labels:{ font:{family:'DM Sans'} } } },
       scales:{
         x:{ stacked:true, ticks:{font:{family:'JetBrains Mono'}} },
         y:{ stacked:true, beginAtZero:true, title:{display:true,text:'Sessions'} },
@@ -547,6 +550,20 @@ function drawTrendChart(t){
     }
   });
 }
+
+// Redraw the chart only when the viewport crosses the mobile/desktop boundary,
+// so the legend alignment (left on mobile, centered on desktop) stays correct.
+let _resizeT=null;
+window.addEventListener('resize', function(){
+  clearTimeout(_resizeT);
+  _resizeT=setTimeout(function(){
+    const nowMobile = (window.innerWidth<=560);
+    if(nowMobile!==lastWasMobile && lastTrendData){
+      lastWasMobile = nowMobile;
+      drawTrendChart(lastTrendData);
+    }
+  }, 200);
+});
 
 boot();
 </script>

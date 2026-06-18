@@ -50,6 +50,10 @@
   .pp-email{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;word-break:break-all}
   .pp-role{display:inline-block;margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.08em;
     text-transform:uppercase;color:var(--accent-dark);background:var(--accent-light);padding:3px 10px;border-radius:999px}
+  .pp-logout{display:block;width:100%;margin-top:14px;padding:9px 12px;border:1px solid var(--line);
+    background:#fff;color:var(--bad);border-radius:9px;font-family:var(--sans);font-weight:600;font-size:13px;
+    cursor:pointer;transition:background .15s,border-color .15s}
+  .pp-logout:hover{background:var(--bad-light);border-color:var(--bad)}
   .btn{font-family:var(--sans);font-weight:600;border:0;border-radius:9px;padding:10px 16px;
     cursor:pointer;font-size:14px;transition:transform .05s ease, filter .15s ease}
   .btn:active{transform:translateY(1px)}
@@ -174,6 +178,7 @@
           <div class="pp-name" id="ppName">—</div>
           <div class="pp-email" id="ppEmail">—</div>
           <div class="pp-role" id="ppRole">—</div>
+          <button class="pp-logout" onclick="signOut()">Sign out</button>
         </div>
       </div>
     </header>
@@ -275,6 +280,17 @@ document.addEventListener('click', function(ev){
     pop.classList.remove('show');
   }
 });
+
+// Clear the app session and return to the login screen.
+// disableAutoSelect() forces the account picker on next sign-in.
+function signOut(){
+  try{ if(window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); }catch(e){}
+  ID_TOKEN = null; PROFILE = {}; ME = null;
+  const pop=document.getElementById('profilePop'); if(pop) pop.classList.remove('show');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login').classList.remove('hidden');
+  boot(); // re-render the Google sign-in button
+}
 
 // GET — include the Google ID token so the backend can identify the user
 async function apiGet(params){

@@ -35,9 +35,21 @@
   .header-text{display:flex;flex-direction:column;justify-content:center}
   .header-brand{height:24px;width:auto;display:block;margin-bottom:1px}
   .header-fallback{font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
-  .header-tagline{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
-  .who{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
-  .who b{color:var(--ink);display:block;font-size:13px}
+  .header-tagline{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-left:3px}
+  .who{position:relative}
+  .avatar{width:38px;height:38px;border-radius:50%;border:2px solid var(--line);background:var(--accent);
+    color:#fff;font-family:var(--sans);font-weight:700;font-size:15px;cursor:pointer;padding:0;overflow:hidden;
+    display:grid;place-items:center;transition:border-color .15s}
+  .avatar:hover{border-color:var(--accent)}
+  .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+  .profile-pop{position:absolute;top:46px;right:0;background:#fff;border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow-lg);padding:14px 16px;min-width:200px;text-align:left;
+    display:none;z-index:50}
+  .profile-pop.show{display:block}
+  .pp-name{font-weight:700;font-size:14px;color:var(--ink)}
+  .pp-email{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;word-break:break-all}
+  .pp-role{display:inline-block;margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent-dark);background:var(--accent-light);padding:3px 10px;border-radius:999px}
   .btn{font-family:var(--sans);font-weight:600;border:0;border-radius:9px;padding:10px 16px;
     cursor:pointer;font-size:14px;transition:transform .05s ease, filter .15s ease}
   .btn:active{transform:translateY(1px)}
@@ -63,6 +75,7 @@
   .row{display:flex;gap:14px;flex-wrap:wrap}
   .row > div{flex:1;min-width:200px}
   table{width:100%;border-collapse:collapse;font-size:14px}
+  .table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
   th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
   th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
   td.mono,th.mono{font-family:var(--mono)}
@@ -71,8 +84,9 @@
   .pill.absent{background:var(--bad-light);color:var(--bad)}
   .pill.leave,.pill.partial{background:var(--amber-light);color:var(--amber-d)}
   .pill.pending{background:var(--bad-light);color:var(--bad)}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-  .seg button{border:0;background:#fff;padding:8px 14px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;max-width:100%}
+  .seg button{border:0;background:#fff;padding:8px 14px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted);white-space:nowrap}
+  .lbl-short{display:none}
   .seg button.present.on{background:var(--good);color:#fff}
   .seg button.absent.on{background:var(--bad);color:#fff}
   .seg button.leave.on{background:var(--amber);color:#3a2606}
@@ -103,7 +117,25 @@
     border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
   @keyframes sp{to{transform:rotate(360deg)}}
   .hidden{display:none!important}
-  @media(max-width:560px){.who b{font-size:12px}.brand h1{font-size:15px}}
+  @media(max-width:560px){
+    .brand h1{font-size:15px}
+    /* #4: shorten status labels and let the toggle fit the card */
+    .lbl-full{display:none}
+    .lbl-short{display:inline}
+    .seg{width:100%}
+    .seg button{flex:1;padding:8px 4px;font-size:12px;text-align:center}
+    table{font-size:13px}
+    th,td{padding:8px 6px}
+    /* #5: keep the % progress bar inside the card */
+    .bar{display:none}
+    td[style*="160px"]{width:auto!important}
+    .amberbox{font-size:11px;padding:2px 6px}
+    /* #6: left-align the stat cards (incl. Overall present) */
+    .stat{flex-direction:column}
+    .stat .s{min-width:0;width:100%;text-align:left}
+    /* tighter chart height on small screens */
+    #chartCard div[style*="height:300px"]{height:240px!important}
+  }
 </style>
 </head>
 <body>
@@ -133,7 +165,17 @@
           <div class="header-tagline">Attendance</div>
         </div>
       </div>
-      <div class="who"><b id="whoName">—</b><span id="whoRole"></span></div>
+      <div class="who" id="whoWrap">
+        <button class="avatar" id="avatarBtn" onclick="toggleProfile(event)" aria-label="Account">
+          <img id="avatarImg" alt="" referrerpolicy="no-referrer" style="display:none">
+          <span id="avatarInit">–</span>
+        </button>
+        <div class="profile-pop" id="profilePop">
+          <div class="pp-name" id="ppName">—</div>
+          <div class="pp-email" id="ppEmail">—</div>
+          <div class="pp-role" id="ppRole">—</div>
+        </div>
+      </div>
     </header>
 
     <div class="tabs" id="tabs"></div>
@@ -215,12 +257,24 @@ const GOOGLE_CLIENT_ID = "1060454695062-vf1ajfodb8siesq7fk906rpind6fjc72.apps.go
 // ================================
 
 let ID_TOKEN = null;       // Google ID token (JWT) for the signed-in user
+let PROFILE = {};          // decoded token: name, email, picture
 
 let ME = null;
 let roster = [];           // current roster for marking
 let markState = {};        // id -> status
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+
+function toggleProfile(e){
+  if(e) e.stopPropagation();
+  document.getElementById('profilePop').classList.toggle('show');
+}
+document.addEventListener('click', function(ev){
+  const pop=document.getElementById('profilePop'); const btn=document.getElementById('avatarBtn');
+  if(pop && pop.classList.contains('show') && !pop.contains(ev.target) && btn && !btn.contains(ev.target)){
+    pop.classList.remove('show');
+  }
+});
 
 // GET — include the Google ID token so the backend can identify the user
 async function apiGet(params){
@@ -245,6 +299,7 @@ function decodeJwt(t){
 // Called by Google Identity Services once the user picks an account
 async function onGoogleCredential(resp){
   ID_TOKEN = resp.credential;
+  PROFILE = decodeJwt(resp.credential); // { name, email, picture, ... }
   const msg = document.getElementById('loginMsg');
   msg.innerHTML = 'Signing you in… <span class="spin"></span>';
   document.getElementById('gbtn').style.display = 'none';
@@ -293,8 +348,21 @@ function boot(){
 function startApp(){
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  document.getElementById('whoName').textContent = ME.email;
-  document.getElementById('whoRole').textContent = ME.role.toUpperCase();
+  // Avatar: Google photo if available, initials fallback
+  const name = PROFILE.name || ME.email;
+  const initials = (name||'?').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const img = document.getElementById('avatarImg');
+  const initEl = document.getElementById('avatarInit');
+  if(PROFILE.picture){
+    img.src = PROFILE.picture;
+    img.style.display = 'block'; initEl.style.display = 'none';
+    img.onerror = ()=>{ img.style.display='none'; initEl.style.display='grid'; initEl.textContent=initials; };
+  } else {
+    img.style.display='none'; initEl.style.display='grid'; initEl.textContent = initials;
+  }
+  document.getElementById('ppName').textContent = name;
+  document.getElementById('ppEmail').textContent = ME.email;
+  document.getElementById('ppRole').textContent = ME.role.toUpperCase();
 
   // Build tabs by role
   const tabs = [];
@@ -356,9 +424,9 @@ function renderRoster(){
     const s = markState[st.id];
     html += `<tr><td>${st.name}</td><td class="mono">${st.id}</td><td>
       <div class="seg">
-        <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')">Present</button>
-        <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')">Absent</button>
-        <button class="leave ${s==='Compensation'?'on':''}" onclick="setStatus('${st.id}','Compensation')">Compensation</button>
+        <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')"><span class="lbl-full">Present</span><span class="lbl-short">Pres.</span></button>
+        <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')"><span class="lbl-full">Absent</span><span class="lbl-short">Abs.</span></button>
+        <button class="leave ${s==='Compensation'?'on':''}" onclick="setStatus('${st.id}','Compensation')"><span class="lbl-full">Compensation</span><span class="lbl-short">Comp.</span></button>
       </div></td></tr>`;
   });
   html += '</tbody></table>';
@@ -437,13 +505,13 @@ async function loadTrend(){
   let html = `<div class="stat">
     <div class="s"><div class="n">${totT}</div><div class="l">Sessions logged</div></div>
     <div class="s"><div class="n amber">${totT?Math.round(totP/totT*100):0}%</div><div class="l">Overall present</div></div>
-  </div><table><thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>Compensation</th><th>%</th><th></th></tr></thead><tbody>`;
+  </div><div class="table-wrap"><table><thead><tr><th>Month</th><th>Present</th><th>Absent</th><th><span class="lbl-full">Compensation</span><span class="lbl-short">Comp.</span></th><th>%</th><th></th></tr></thead><tbody>`;
   t.forEach(x=>{
     html += `<tr><td>${fmtMonth(x.month)}</td><td>${x.present}</td><td>${x.absent}</td><td>${x.comp}</td>
       <td><span class="amberbox">${x.pct}%</span></td>
       <td style="width:160px"><div class="bar"><span style="width:${x.pct}%"></span></div></td></tr>`;
   });
-  html+='</tbody></table>';
+  html+='</tbody></table></div>';
   card.innerHTML=html;
   drawTrendChart(t);
 }

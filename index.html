@@ -84,8 +84,6 @@
   .stat .s .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
   .bar{height:10px;border-radius:6px;background:var(--accent-light);overflow:hidden;margin-top:6px}
   .bar > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#33b0c0)}
-  .wa{display:inline-flex;align-items:center;gap:6px;background:#25d366;color:#063d20;
-    font-weight:700;padding:7px 12px;border-radius:8px;text-decoration:none;font-size:13px}
   .empty{color:var(--muted);text-align:center;padding:30px;font-size:14px}
   .login{max-width:460px;margin:8vh auto}
   .login .card{text-align:center;padding:40px 36px;box-shadow:var(--shadow-lg)}
@@ -113,8 +111,8 @@
   <!-- LOGIN -->
   <div id="login" class="login">
     <div class="card">
-      <div class="login-icon"><img src="logo-on.png" alt="ElectroBotics" onerror="this.parentElement.innerHTML='EB';this.parentElement.classList.add('logo-lg')"></div>
-      <img src="ElectroBotics_No_Makerspace.png" alt="ElectroBotics" class="login-brand" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <div class="login-icon"><img src="logo-on.png" alt="ElectroBotics" onerror="var p=this.parentElement;p.classList.add('logo-lg');p.textContent='EB'"></div>
+      <img src="ElectroBotics_No_Makerspace.png" alt="ElectroBotics" class="login-brand" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='block'">
       <h2 class="login-fallback" style="display:none">ElectroBotics</h2>
       <div class="sub">Attendance &amp; Fees</div>
       <p id="loginMsg">Sign in with your Google account to continue.</p>
@@ -127,9 +125,9 @@
   <div id="app" class="hidden">
     <header class="app">
       <div class="brand">
-        <div class="header-logo"><img src="logo-on.png" alt="ElectroBotics" onerror="this.parentElement.innerHTML='<div class=&quot;logo&quot;>EB</div>'"></div>
+        <div class="header-logo"><img src="logo-on.png" alt="ElectroBotics" onerror="var p=this.parentElement;this.remove();p.innerHTML='<div class=&quot;logo&quot;>EB</div>'"></div>
         <div class="header-text">
-          <img src="ElectroBotics_No_Makerspace.png" alt="ElectroBotics" class="header-brand" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <img src="ElectroBotics_No_Makerspace.png" alt="ElectroBotics" class="header-brand" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='block'">
           <div class="header-fallback" style="display:none">ElectroBotics</div>
           <div class="header-tagline">Attendance &amp; Fees</div>
         </div>
@@ -181,20 +179,6 @@
       </div>
       <div class="card" id="trendCard"><div class="empty">Loading…</div></div>
     </section>
-
-    <!-- ADMIN: payments -->
-    <section id="view-payments" class="view hidden">
-      <div class="card">
-        <h2>Payments by month</h2>
-        <div class="sub">Received vs pending across the suite.</div>
-        <div id="paySummary"><div class="empty">Loading…</div></div>
-      </div>
-      <div class="card">
-        <h2>Pending payments</h2>
-        <div class="sub">Tap “Remind on WhatsApp” to open a pre-filled message to the parent.</div>
-        <div id="pendingTable"><div class="empty">Loading…</div></div>
-      </div>
-    </section>
   </div>
 </div>
 
@@ -203,7 +187,7 @@
 <script>
 // ============ CONFIG ============
 // Paste your Apps Script Web App URL here after deploying (ends with /exec):
-const API = "https://script.google.com/macros/s/AKfycbxVAfyQCdYsEiLD-c4LBvpBSTFdn59FatOCW_N9EX1wgK3ySJUZVW1336HXUOXsxoRD/exec";
+const API = "https://script.google.com/macros/s/AKfycbwhArUXZyJFHJN7Na-sqVzuvAn3usIDlvJl-I24ONBsfXISjR8h2bTOBFb7l-uqIOtY/exec";
 // Your Google OAuth Client ID (the same one your tracking app uses):
 const GOOGLE_CLIENT_ID = "1060454695062-vf1ajfodb8siesq7fk906rpind6fjc72.apps.googleusercontent.com";
 // ================================
@@ -293,7 +277,7 @@ function startApp(){
   // Build tabs by role
   const tabs = [];
   if(ME.role==='tutor' || ME.role==='admin') tabs.push(['view-mark','Mark attendance']);
-  if(ME.role==='admin'){ tabs.push(['view-attendance','Attendance trends']); tabs.push(['view-payments','Payments']); }
+  if(ME.role==='admin'){ tabs.push(['view-attendance','Attendance trends']); }
   const tabBar = document.getElementById('tabs');
   tabBar.innerHTML='';
   tabs.forEach(([id,label],i)=>{
@@ -315,7 +299,6 @@ function showView(id, btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   if(btn) btn.classList.add('on');
   if(id==='view-attendance') initTrendStudents();
-  if(id==='view-payments') loadPayments();
 }
 
 // ---------- batches & roster ----------
@@ -424,38 +407,6 @@ async function loadTrend(){
   });
   html+='</tbody></table>';
   card.innerHTML=html;
-}
-
-// ---------- payments ----------
-async function loadPayments(){
-  const sum=document.getElementById('paySummary'), pend=document.getElementById('pendingTable');
-  sum.innerHTML='<div class="empty"><span class="spin"></span> Loading…</div>';
-  const r = await apiGet({action:'payments'});
-  if(!r.ok){ sum.innerHTML='<div class="empty">'+(r.error||'Error')+'</div>'; return; }
-  const s=r.summary||[];
-  if(!s.length){ sum.innerHTML='<div class="empty">No payment rows yet.</div>'; }
-  else{
-    let html='<table><thead><tr><th>Month</th><th>Total due</th><th>Received</th><th>Pending</th><th>Collected</th></tr></thead><tbody>';
-    s.forEach(m=>{
-      html+=`<tr><td class="mono">${m.month}</td>
-        <td class="mono">₹${m.due.toLocaleString('en-IN')}</td>
-        <td class="mono">₹${m.paid.toLocaleString('en-IN')}</td>
-        <td class="mono">₹${m.pending.toLocaleString('en-IN')}</td>
-        <td style="min-width:140px"><span class="amberbox">${m.pct}%</span>
-        <div class="bar"><span style="width:${m.pct}%"></span></div></td></tr>`;
-    });
-    html+='</tbody></table>'; sum.innerHTML=html;
-  }
-  const p=r.pending||[];
-  if(!p.length){ pend.innerHTML='<div class="empty">Nothing pending. All caught up.</div>'; return; }
-  let ph='<table><thead><tr><th>Month</th><th>Student</th><th>Batch</th><th>Balance</th><th></th></tr></thead><tbody>';
-  p.forEach(x=>{
-    const wa = x.wa ? `<a class="wa" href="${x.wa}" target="_blank" rel="noopener">Remind on WhatsApp</a>`
-                    : `<span class="pill pending">No contact</span>`;
-    ph+=`<tr><td class="mono">${x.month}</td><td>${x.name||x.studentId}</td><td>${x.batch}</td>
-      <td class="mono">₹${x.balance.toLocaleString('en-IN')}</td><td>${wa}</td></tr>`;
-  });
-  ph+='</tbody></table>'; pend.innerHTML=ph;
 }
 
 boot();

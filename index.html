@@ -94,6 +94,14 @@
   .seg button.present.on{background:var(--good);color:#fff}
   .seg button.absent.on{background:var(--bad);color:#fff}
   .seg button.leave.on{background:var(--amber);color:#3a2606}
+  .stu-name{font-weight:600;color:var(--ink)}
+  .stu-id{font-family:var(--mono);font-size:11px;color:var(--text-light);margin-top:1px}
+  .stu-tutor{font-size:13px;color:var(--muted)}
+  .status-cell{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .count-sel{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .count-sel button{border:0;background:#fff;padding:7px 10px;cursor:pointer;font-weight:700;font-size:12px;
+    font-family:var(--mono);color:var(--muted)}
+  .count-sel button.on{background:var(--accent);color:#fff}
   .amberbox{font-family:var(--mono);font-weight:700;color:var(--amber-d);background:var(--amber-light);
     padding:2px 8px;border-radius:6px;display:inline-block}
   .stat{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
@@ -189,11 +197,15 @@
     <section id="view-mark" class="view hidden">
       <div class="card">
         <h2>Mark attendance</h2>
-        <div class="sub">Choose a batch and date, then set each student’s status.</div>
+        <div class="sub">Choose a batch and date, then set status only for the students you need. Unmarked students aren't saved.</div>
         <div class="row">
           <div>
             <label class="f">Batch</label>
-            <select id="mBatch" onchange="loadRoster()"></select>
+            <select id="mBatch" onchange="onMarkBatchChange()"></select>
+          </div>
+          <div>
+            <label class="f">Tutor</label>
+            <select id="mTutor" onchange="loadRoster()"><option value="">All tutors</option></select>
           </div>
           <div>
             <label class="f">Date</label>
@@ -416,47 +428,84 @@ async function loadBatches(){
     r.batches.map(b=>`<option>${b}</option>`).join('');
 }
 
+// When batch changes: refresh the tutor list for that batch, then load roster
+async function onMarkBatchChange(){
+  const batch = document.getElementById('mBatch').value;
+  const tsel = document.getElementById('mTutor');
+  tsel.innerHTML = '<option value="">All tutors</option>';
+  if(batch){
+    const t = await apiGet({action:'tutors', batch});
+    (t.tutors||[]).forEach(name=>{
+      const o=document.createElement('option'); o.value=name; o.textContent=name; tsel.appendChild(o);
+    });
+  }
+  loadRoster();
+}
+
 async function loadRoster(){
   const batch = document.getElementById('mBatch').value;
+  const tutor = document.getElementById('mTutor').value;
   const date = document.getElementById('mDate').value;
   const box = document.getElementById('roster');
   if(!batch){ box.innerHTML='<div class="empty">Pick a batch to load students.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
   box.innerHTML='<div class="empty"><span class="spin"></span> Loading roster…</div>';
   const [s, prior] = await Promise.all([
-    apiGet({action:'students', batch}),
+    apiGet({action:'students', batch, tutor}),
     apiGet({action:'attendanceForDate', batch, date})
   ]);
   roster = s.students || [];
   markState = {};
   const marked = prior.marked || {};
-  roster.forEach(st=>{ markState[st.id] = marked[st.id] || 'Present'; });
+  roster.forEach(st=>{
+    const m = marked[st.id];
+    // No default status — only pre-fill what was previously saved.
+    markState[st.id] = m ? { status: m.status, count: m.count||1 } : { status: null, count: 1 };
+  });
   renderRoster();
 }
 
 function renderRoster(){
-  if(!roster.length){ document.getElementById('roster').innerHTML='<div class="empty">No active students in this batch.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
-  let html = '<table><thead><tr><th>Student</th><th class="mono">ID</th><th>Status</th></tr></thead><tbody>';
+  if(!roster.length){ document.getElementById('roster').innerHTML='<div class="empty">No students for this selection.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
+  let html = '<table><thead><tr><th>Student</th><th>Tutor</th><th>Status</th></tr></thead><tbody>';
   roster.forEach(st=>{
-    const s = markState[st.id];
-    html += `<tr><td>${st.name}</td><td class="mono">${st.id}</td><td>
-      <div class="seg">
-        <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')"><span class="lbl-full">Present</span><span class="lbl-short">Pres.</span></button>
-        <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')"><span class="lbl-full">Absent</span><span class="lbl-short">Abs.</span></button>
-        <button class="leave ${s==='Compensation'?'on':''}" onclick="setStatus('${st.id}','Compensation')"><span class="lbl-full">Compensation</span><span class="lbl-short">Comp.</span></button>
+    const ms = markState[st.id]; const s = ms.status; const c = ms.count||1;
+    // Count selector only shows once a status is chosen
+    const countSel = s ? `<div class="count-sel">
+        <button class="${c===1?'on':''}" onclick="setCount('${st.id}',1)">×1</button>
+        <button class="${c===2?'on':''}" onclick="setCount('${st.id}',2)">×2</button>
+      </div>` : '';
+    html += `<tr><td><div class="stu-name">${st.name}</div><div class="stu-id">${st.id}</div></td>
+      <td class="stu-tutor">${st.tutor||'—'}</td>
+      <td><div class="status-cell">
+        <div class="seg">
+          <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')"><span class="lbl-full">Present</span><span class="lbl-short">Pres.</span></button>
+          <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')"><span class="lbl-full">Absent</span><span class="lbl-short">Abs.</span></button>
+          <button class="leave ${s==='Compensation'?'on':''}" onclick="setStatus('${st.id}','Compensation')"><span class="lbl-full">Compensation</span><span class="lbl-short">Comp.</span></button>
+        </div>${countSel}
       </div></td></tr>`;
   });
   html += '</tbody></table>';
   document.getElementById('roster').innerHTML = html;
   document.getElementById('saveBar').classList.remove('hidden');
 }
-function setStatus(id,status){ markState[id]=status; renderRoster(); }
+function setStatus(id,status){
+  // Tapping the active status again clears it (so a wrongly-marked student can be unset)
+  if(markState[id].status===status){ markState[id].status=null; }
+  else { markState[id].status=status; }
+  renderRoster();
+}
+function setCount(id,n){ markState[id].count=n; renderRoster(); }
 
 async function saveAttendance(){
   const date = document.getElementById('mDate').value;
-  const records = roster.map(st=>({id:st.id, status:markState[st.id]}));
+  // Only send students that have a status set; backend skips the rest anyway.
+  const records = roster
+    .filter(st=>markState[st.id].status)
+    .map(st=>({id:st.id, status:markState[st.id].status, count:markState[st.id].count||1}));
+  if(!records.length){ toast('Nothing marked to save.'); return; }
   toast('Saving…');
   const r = await apiPost({action:'markAttendance', date, records});
-  toast(r.ok ? `Saved ${r.saved} students for ${date}` : 'Save failed: '+(r.error||'?'));
+  toast(r.ok ? `Saved ${r.saved} student(s) for ${date}` : 'Save failed: '+(r.error||'?'));
 }
 
 // ---------- attendance trends ----------

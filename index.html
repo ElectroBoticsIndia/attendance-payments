@@ -252,7 +252,7 @@
           </div>
           <div>
             <label class="f">Student</label>
-            <select id="aStudent" onchange="loadTrend()"><option value="">All students (overall)</option></select>
+            <select id="aStudent" onchange="loadTrend()"><option value="">All students</option></select>
           </div>
           <div>
             <label class="f">Year</label>
@@ -316,7 +316,17 @@ document.addEventListener('click', function(ev){
 // disableAutoSelect() forces the account picker on next sign-in.
 function signOut(){
   try{ if(window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); }catch(e){}
+  // Clear all in-memory state so the next login starts fresh (no stale data).
   ID_TOKEN = null; PROFILE = {}; ME = null;
+  roster = []; markState = {}; trendStudents = [];
+  lastTrendData = null;
+  if(trendChartObj){ try{ trendChartObj.destroy(); }catch(e){} trendChartObj = null; }
+  // Reset mark-attendance and trends filter controls to their initial state
+  ['mCountry','mBatch','mTutor','aCountry','aBatch','aStudent','aYear','aMonth'].forEach(id=>{
+    const el=document.getElementById(id); if(el){ el.innerHTML=''; el.value=''; }
+  });
+  const rb=document.getElementById('roster'); if(rb) rb.innerHTML='';
+  const tc=document.getElementById('trendCard'); if(tc) tc.innerHTML='';
   const pop=document.getElementById('profilePop'); if(pop) pop.classList.remove('show');
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login').classList.remove('hidden');
@@ -563,8 +573,19 @@ async function saveAttendance(){
 let trendStudents = [];   // full active roster cache for filtering by batch
 async function initTrendStudents(){
   const csel = document.getElementById('aCountry');
-  if(csel.dataset.loaded){ loadTrend(); return; }
-  // Load countries and the full student list in parallel
+  const bsel = document.getElementById('aBatch');
+  const ssel = document.getElementById('aStudent');
+  const ysel = document.getElementById('aYear');
+  const msel = document.getElementById('aMonth');
+  const card = document.getElementById('trendCard');
+
+  // Always re-fetch fresh when the view is opened. Reset every filter first.
+  card.innerHTML = '<div class="empty"><span class="spin"></span> Loading…</div>';
+  csel.innerHTML = '<option value="">All countries</option>';
+  bsel.innerHTML = '<option value="">All batches</option>';
+  ssel.innerHTML = '<option value="">All students</option>';
+
+  // Load countries and the full student list, fully awaited
   const [c, s] = await Promise.all([
     apiGet({action:'countries'}),
     apiGet({action:'students'})
@@ -574,17 +595,19 @@ async function initTrendStudents(){
   });
   trendStudents = s.students || [];
   fillTrendStudents('');
-  // Year dropdown: current year and a few back; default to current year
-  const ysel = document.getElementById('aYear');
+
+  // Year dropdown: current year and a few back; default to current year + month
   const now = new Date();
   const thisYear = now.getFullYear();
+  ysel.innerHTML = '<option value="">All years</option>';
   for(let y=thisYear; y>=thisYear-4; y--){
     const o=document.createElement('option'); o.value=y; o.textContent=y; ysel.appendChild(o);
   }
-  ysel.value = String(thisYear);                         // default: current year
-  document.getElementById('aMonth').value = String(now.getMonth()+1); // default: current month
-  csel.dataset.loaded='1';
-  loadTrend();
+  ysel.value = String(thisYear);
+  msel.value = String(now.getMonth()+1);
+
+  // Everything is populated — load the trend exactly once.
+  await loadTrend();
 }
 // yyyy-MM -> "Jun 2026"
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -596,7 +619,7 @@ function fmtMonth(ym){
 // Populate the student dropdown, optionally limited to a batch key
 function fillTrendStudents(batchKey){
   const sel = document.getElementById('aStudent');
-  sel.innerHTML = '<option value="">All students (overall)</option>';
+  sel.innerHTML = '<option value="">All students</option>';
   trendStudents
     .filter(st=>!batchKey || st.batch===batchKey)
     .forEach(st=>{

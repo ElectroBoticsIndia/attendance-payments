@@ -97,7 +97,9 @@
   .stu-name{font-weight:600;color:var(--ink)}
   .stu-id{font-family:var(--mono);font-size:11px;color:var(--text-light);margin-top:1px}
   .stu-tutor{font-size:13px;color:var(--muted)}
-  .status-cell{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .status-cell{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+  #roster{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #roster table{min-width:max-content}
   .count-sel{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .count-sel button{border:0;background:#fff;padding:7px 10px;cursor:pointer;font-weight:700;font-size:12px;
     font-family:var(--mono);color:var(--muted)}
@@ -137,22 +139,12 @@
   .hidden{display:none!important}
   @media(max-width:560px){
     .brand h1{font-size:15px}
-    /* status toggle + count stay inline on one row (only 2 status buttons now) */
+    /* status toggle + count keep comfortable sizes; table scrolls horizontally if needed */
     .seg{width:auto}
-    .seg button{padding:7px 8px;font-size:12px}
-    .status-cell{flex-wrap:nowrap;gap:5px}
-    .count-sel button{padding:6px 6px;font-size:11px}
+    .status-cell{flex-wrap:nowrap;gap:8px}
     table{font-size:13px}
-    th,td{padding:8px 5px}
+    th,td{padding:8px 6px}
     .stu-tutor{font-size:12px}
-    /* mark-attendance table: give the status column room by tightening the rest */
-    #roster th,#roster td{padding:8px 4px}
-    #roster .stu-name{font-size:13px}
-    #roster .stu-id{font-size:10px}
-    #roster .stu-tutor{font-size:11px}
-    #roster .seg button{padding:6px 7px;font-size:11px}
-    #roster .count-sel button{padding:5px 6px;font-size:10px}
-    #roster .status-cell{gap:4px}
     /* keep the % progress bar inside the card */
     .bar{display:none}
     td[style*="160px"]{width:auto!important}
@@ -272,7 +264,7 @@
       <div class="card" id="chartCard">
         <h2>Trend chart</h2>
         <div class="sub" id="chartSub">Present % by month for the current selection.</div>
-        <div style="position:relative;height:300px"><canvas id="trendChart"></canvas></div>
+        <div class="chart-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch"><div id="chartInner" style="position:relative;height:300px"><canvas id="trendChart"></canvas></div></div>
       </div>
     </section>
   </div>
@@ -636,6 +628,15 @@ function drawTrendChart(t){
   if(!cv || typeof Chart==='undefined') return;
   if(trendChartObj){ trendChartObj.destroy(); trendChartObj=null; }
   if(!t.length){ return; }
+  // Width: fill the card for few months; fixed ~75px/month (min 90 incl. axis) when many,
+  // so the chart scrolls horizontally instead of compressing.
+  const inner = document.getElementById('chartInner');
+  if(inner){
+    const scroller = inner.parentElement;
+    const avail = scroller ? scroller.clientWidth : 600;
+    const needed = 80 + t.length*75;   // 80px reserve for the left axis area
+    inner.style.width = (needed > avail ? needed : avail) + 'px';
+  }
   const labels = t.map(x=>fmtMonth(x.month));
   const css = getComputedStyle(document.documentElement);
   const accent = css.getPropertyValue('--accent').trim() || '#008fa0';

@@ -764,10 +764,10 @@ function drawTrendChart(t){
   trendChartObj = new Chart(cv, {
     type:'bar',
     data:{ labels, datasets:[
-      { label:'Present', data:t.map(x=>x.present), backgroundColor:good, stack:'s' },
-      { label:'Absent', data:t.map(x=>x.absent), backgroundColor:bad, stack:'s' },
+      { label:'Present', data:t.map(x=>x.present), backgroundColor:good, stack:'s', order:2 },
+      { label:'Absent', data:t.map(x=>x.absent), backgroundColor:bad, stack:'s', order:2 },
       { type:'line', label:'Present %', data:t.map(x=>x.pct), borderColor:accent, backgroundColor:accent,
-        yAxisID:'y2', tension:.3, pointRadius:4, fill:false }
+        yAxisID:'y2', tension:.3, pointRadius:4, fill:false, order:1 }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ position:'bottom', align: (window.innerWidth<=560 ? 'start' : 'center'),

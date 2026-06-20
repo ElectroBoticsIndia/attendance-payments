@@ -139,12 +139,20 @@
     .brand h1{font-size:15px}
     /* status toggle + count stay inline on one row (only 2 status buttons now) */
     .seg{width:auto}
-    .seg button{padding:7px 9px;font-size:12px}
-    .status-cell{flex-wrap:nowrap;gap:6px}
-    .count-sel button{padding:6px 7px;font-size:11px}
+    .seg button{padding:7px 8px;font-size:12px}
+    .status-cell{flex-wrap:nowrap;gap:5px}
+    .count-sel button{padding:6px 6px;font-size:11px}
     table{font-size:13px}
     th,td{padding:8px 5px}
     .stu-tutor{font-size:12px}
+    /* mark-attendance table: give the status column room by tightening the rest */
+    #roster th,#roster td{padding:8px 4px}
+    #roster .stu-name{font-size:13px}
+    #roster .stu-id{font-size:10px}
+    #roster .stu-tutor{font-size:11px}
+    #roster .seg button{padding:6px 7px;font-size:11px}
+    #roster .count-sel button{padding:5px 6px;font-size:10px}
+    #roster .status-cell{gap:4px}
     /* keep the % progress bar inside the card */
     .bar{display:none}
     td[style*="160px"]{width:auto!important}
@@ -476,11 +484,12 @@ function renderRoster(){
   let html = '<table><thead><tr><th>Student</th><th>Tutor</th><th>Status</th></tr></thead><tbody>';
   roster.forEach(st=>{
     const ms = markState[st.id]; const s = ms.status; const c = ms.count||1;
-    // Count selector only shows when Present is selected
-    const countSel = (s==='Present') ? `<div class="count-sel">
+    // Always render the count selector to reserve its space; hide it unless Present
+    // so the row never shifts when toggling Present <-> Absent.
+    const countSel = `<div class="count-sel" style="${s==='Present'?'':'visibility:hidden'}">
         <button class="${c===1?'on':''}" onclick="setCount('${st.id}',1)">×1</button>
         <button class="${c===2?'on':''}" onclick="setCount('${st.id}',2)">×2</button>
-      </div>` : '';
+      </div>`;
     html += `<tr><td><div class="stu-name">${st.name}</div><div class="stu-id">${st.id}</div></td>
       <td class="stu-tutor">${st.tutor||'—'}</td>
       <td><div class="status-cell">
@@ -642,7 +651,8 @@ function drawTrendChart(t){
         yAxisID:'y2', tension:.3, pointRadius:4, fill:false }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', align: (window.innerWidth<=560 ? 'start' : 'center'), labels:{ font:{family:'DM Sans'} } } },
+      plugins:{ legend:{ position:'bottom', align: (window.innerWidth<=560 ? 'start' : 'center'),
+        labels:{ font:{family:'DM Sans'}, usePointStyle:true, pointStyle:'rectRounded', boxWidth:12, boxHeight:12 } } },
       scales:{
         x:{ stacked:true, ticks:{font:{family:'JetBrains Mono'}} },
         y:{ stacked:true, beginAtZero:true, title:{display:true,text:'Sessions'} },

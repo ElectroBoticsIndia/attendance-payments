@@ -102,6 +102,12 @@
   .count-sel button{border:0;background:#fff;padding:7px 10px;cursor:pointer;font-weight:700;font-size:12px;
     font-family:var(--mono);color:var(--muted)}
   .count-sel button.on{background:var(--accent);color:#fff}
+  .month-row:hover{background:var(--surface-alt)}
+  .caret{display:inline-block;color:var(--accent);font-size:11px;width:12px}
+  .dates-row td{background:var(--surface-alt)}
+  .dates-cell{padding:12px!important}
+  .date-chip{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:999px;
+    padding:4px 11px;margin:3px 4px 3px 0;font-size:12px;font-family:var(--mono);color:var(--accent-dark)}
   .amberbox{font-family:var(--mono);font-weight:700;color:var(--amber-d);background:var(--amber-light);
     padding:2px 8px;border-radius:6px;display:inline-block}
   .stat{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
@@ -131,18 +137,19 @@
   .hidden{display:none!important}
   @media(max-width:560px){
     .brand h1{font-size:15px}
-    /* #4: shorten status labels and let the toggle fit the card */
-    .lbl-full{display:none}
-    .lbl-short{display:inline}
-    .seg{width:100%}
-    .seg button{flex:1;padding:8px 4px;font-size:12px;text-align:center}
+    /* status toggle + count stay inline on one row (only 2 status buttons now) */
+    .seg{width:auto}
+    .seg button{padding:7px 9px;font-size:12px}
+    .status-cell{flex-wrap:nowrap;gap:6px}
+    .count-sel button{padding:6px 7px;font-size:11px}
     table{font-size:13px}
-    th,td{padding:8px 6px}
-    /* #5: keep the % progress bar inside the card */
+    th,td{padding:8px 5px}
+    .stu-tutor{font-size:12px}
+    /* keep the % progress bar inside the card */
     .bar{display:none}
     td[style*="160px"]{width:auto!important}
     .amberbox{font-size:11px;padding:2px 6px}
-    /* #6: left-align the stat cards (incl. Overall present) */
+    /* left-align the stat cards (incl. Overall present) */
     .stat{flex-direction:column}
     .stat .s{min-width:0;width:100%;text-align:left}
     /* tighter chart height on small screens */
@@ -469,8 +476,8 @@ function renderRoster(){
   let html = '<table><thead><tr><th>Student</th><th>Tutor</th><th>Status</th></tr></thead><tbody>';
   roster.forEach(st=>{
     const ms = markState[st.id]; const s = ms.status; const c = ms.count||1;
-    // Count selector only shows once a status is chosen
-    const countSel = s ? `<div class="count-sel">
+    // Count selector only shows when Present is selected
+    const countSel = (s==='Present') ? `<div class="count-sel">
         <button class="${c===1?'on':''}" onclick="setCount('${st.id}',1)">×1</button>
         <button class="${c===2?'on':''}" onclick="setCount('${st.id}',2)">×2</button>
       </div>` : '';
@@ -478,9 +485,8 @@ function renderRoster(){
       <td class="stu-tutor">${st.tutor||'—'}</td>
       <td><div class="status-cell">
         <div class="seg">
-          <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')"><span class="lbl-full">Present</span><span class="lbl-short">Pres.</span></button>
-          <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')"><span class="lbl-full">Absent</span><span class="lbl-short">Abs.</span></button>
-          <button class="leave ${s==='Compensation'?'on':''}" onclick="setStatus('${st.id}','Compensation')"><span class="lbl-full">Compensation</span><span class="lbl-short">Comp.</span></button>
+          <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')">Present</button>
+          <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')">Absent</button>
         </div>${countSel}
       </div></td></tr>`;
   });
@@ -492,6 +498,8 @@ function setStatus(id,status){
   // Tapping the active status again clears it (so a wrongly-marked student can be unset)
   if(markState[id].status===status){ markState[id].status=null; }
   else { markState[id].status=status; }
+  // Count applies to Present only; reset to 1 otherwise
+  if(markState[id].status!=='Present'){ markState[id].count=1; }
   renderRoster();
 }
 function setCount(id,n){ markState[id].count=n; renderRoster(); }
@@ -569,18 +577,48 @@ async function loadTrend(){
   const t = r.trend||[];
   if(!t.length){ card.innerHTML='<div class="empty">No attendance recorded for this selection yet.</div>'; drawTrendChart([]); return; }
   const totP=t.reduce((a,x)=>a+x.present,0), totT=t.reduce((a,x)=>a+x.total,0);
+  const single = !!studentId; // drill-down only meaningful for a single student
   let html = `<div class="stat">
     <div class="s"><div class="n">${totT}</div><div class="l">Sessions logged</div></div>
     <div class="s"><div class="n amber">${totT?Math.round(totP/totT*100):0}%</div><div class="l">Overall present</div></div>
-  </div><div class="table-wrap"><table><thead><tr><th>Month</th><th>Present</th><th>Absent</th><th><span class="lbl-full">Compensation</span><span class="lbl-short">Comp.</span></th><th>%</th><th></th></tr></thead><tbody>`;
+  </div>`;
+  if(single){ html += `<div class="sub" style="margin:-4px 0 10px">Tip: tap a month to see the Present dates.</div>`; }
+  html += `<div class="table-wrap"><table><thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>%</th><th></th></tr></thead><tbody>`;
   t.forEach(x=>{
-    html += `<tr><td>${fmtMonth(x.month)}</td><td>${x.present}</td><td>${x.absent}</td><td>${x.comp}</td>
+    const clickable = single ? `class="month-row" onclick="toggleMonthDates(this,'${x.month}')" style="cursor:pointer"` : '';
+    html += `<tr ${clickable}><td>${single?'<span class="caret">▸</span> ':''}${fmtMonth(x.month)}</td><td>${x.present}</td><td>${x.absent}</td>
       <td><span class="amberbox">${x.pct}%</span></td>
       <td style="width:160px"><div class="bar"><span style="width:${x.pct}%"></span></div></td></tr>`;
   });
   html+='</tbody></table></div>';
   card.innerHTML=html;
   drawTrendChart(t);
+}
+
+// Expand/collapse a month row to show that student's Present dates.
+let _trendStudentId = '';
+async function toggleMonthDates(rowEl, ym){
+  const next = rowEl.nextElementSibling;
+  if(next && next.classList.contains('dates-row')){
+    next.remove();
+    rowEl.querySelector('.caret').textContent='▸';
+    return;
+  }
+  rowEl.querySelector('.caret').textContent='▾';
+  const studentId = document.getElementById('aStudent').value;
+  const tr = document.createElement('tr');
+  tr.className='dates-row';
+  tr.innerHTML = `<td colspan="5"><span class="spin"></span> Loading dates…</td>`;
+  rowEl.parentNode.insertBefore(tr, rowEl.nextSibling);
+  const r = await apiGet({action:'presentDates', studentId, ym});
+  const dates = (r.ok && r.dates) ? r.dates : [];
+  if(!dates.length){ tr.innerHTML = `<td colspan="5" class="dates-cell"><em>No Present dates this month.</em></td>`; return; }
+  const chips = dates.map(d=>{
+    const dt = new Date(d.date+'T00:00:00');
+    const lbl = isNaN(dt)? d.date : dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    return `<span class="date-chip">${lbl}${d.count>1?` ×${d.count}`:''}</span>`;
+  }).join('');
+  tr.innerHTML = `<td colspan="5" class="dates-cell">${chips}</td>`;
 }
 
 function drawTrendChart(t){
@@ -600,7 +638,6 @@ function drawTrendChart(t){
     data:{ labels, datasets:[
       { label:'Present', data:t.map(x=>x.present), backgroundColor:good, stack:'s' },
       { label:'Absent', data:t.map(x=>x.absent), backgroundColor:bad, stack:'s' },
-      { label:'Compensation', data:t.map(x=>x.comp), backgroundColor:amber, stack:'s' },
       { type:'line', label:'Present %', data:t.map(x=>x.pct), borderColor:accent, backgroundColor:accent,
         yAxisID:'y2', tension:.3, pointRadius:4, fill:false }
     ]},

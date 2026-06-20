@@ -594,7 +594,7 @@ async function initTrendStudents(){
     const o=document.createElement('option'); o.value=name; o.textContent=name; csel.appendChild(o);
   });
   trendStudents = s.students || [];
-  fillTrendStudents('');
+  fillTrendStudents('', '');
 
   // Year dropdown: current year and a few back; default to current year + month
   const now = new Date();
@@ -616,12 +616,16 @@ function fmtMonth(ym){
   if(p.length>=2){ const mi=parseInt(p[1],10)-1; if(mi>=0&&mi<12) return MONTHS[mi]+' '+p[0]; }
   return ym;
 }
-// Populate the student dropdown, optionally limited to a batch key
-function fillTrendStudents(batchKey){
+// Populate the student dropdown, limited to a batch key or a country
+function fillTrendStudents(batchKey, country){
   const sel = document.getElementById('aStudent');
   sel.innerHTML = '<option value="">All students</option>';
   trendStudents
-    .filter(st=>!batchKey || st.batch===batchKey)
+    .filter(st=>{
+      if(batchKey) return st.batch===batchKey;
+      if(country) return String(st.batch||'').indexOf(country + ' · ')===0; // batch starts with "Country · "
+      return true;
+    })
     .forEach(st=>{
       const o=document.createElement('option'); o.value=st.id; o.textContent=`${st.name} (${st.id})`; sel.appendChild(o);
     });
@@ -632,38 +636,46 @@ async function onTrendCountryChange(){
   const bsel = document.getElementById('aBatch');
   if(!country){
     bsel.innerHTML = '<option value="">All batches</option>';
-    fillTrendStudents(''); loadTrend(); return;
+    fillTrendStudents('', ''); loadTrend(); return;
   }
   bsel.innerHTML = '<option>Loading…</option>'; bsel.disabled = true;
   const r = await apiGet({action:'batches', country});
   bsel.disabled = false;
   bsel.innerHTML = '<option value="">All batches</option>' +
     ((r.batches)||[]).map(b=>`<option>${b}</option>`).join('');
-  fillTrendStudents('');
+  fillTrendStudents('', country);   // students in this country
   loadTrend();
 }
-// When batch changes: refilter students to that batch key, reload
+// When batch changes: refilter students, reload
 function onTrendBatchChange(){
-  fillTrendStudents(trendBatchKey());
+  fillTrendStudentsFiltered();
   loadTrend();
 }
-// Build the full batch key from the trends Country + Batch selection
+// Full batch key only when a specific timing is chosen; else '' (so country alone applies)
 function trendBatchKey(){
   const country = document.getElementById('aCountry').value;
   const timing = document.getElementById('aBatch').value;
-  return makeBatchKey(country, timing);
+  return timing ? makeBatchKey(country, timing) : '';
+}
+// Filter the student dropdown by the current batch (if any) or country (if any)
+function fillTrendStudentsFiltered(){
+  const country = document.getElementById('aCountry').value;
+  const timing = document.getElementById('aBatch').value;
+  const batchKey = timing ? makeBatchKey(country, timing) : '';
+  fillTrendStudents(batchKey, country);
 }
 let trendChartObj = null;
 let lastTrendData = null;   // cached for redraw on viewport change
 let lastWasMobile = (window.innerWidth<=560);
 async function loadTrend(){
   const studentId = document.getElementById('aStudent').value;
-  const batch = trendBatchKey();
+  const country = document.getElementById('aCountry').value;
+  const batch = trendBatchKey();   // only set when a specific batch timing chosen
   const month = document.getElementById('aMonth').value;
   const year = document.getElementById('aYear').value;
   const card = document.getElementById('trendCard');
   card.innerHTML='<div class="empty"><span class="spin"></span> Loading…</div>';
-  const r = await apiGet({action:'attendanceTrend', studentId, batch, month, year});
+  const r = await apiGet({action:'attendanceTrend', studentId, batch, country, month, year});
   if(!r.ok){ card.innerHTML='<div class="empty">'+(r.error||'Error')+'</div>'; drawTrendChart([]); return; }
   const t = r.trend||[];
   if(!t.length){ card.innerHTML='<div class="empty">No attendance recorded for this selection yet.</div>'; drawTrendChart([]); return; }

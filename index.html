@@ -62,6 +62,11 @@
   .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
   .btn.sm{padding:6px 12px;font-size:13px}
   .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .module-switch{display:inline-flex;gap:4px;background:var(--surface-alt);border:1px solid var(--line);
+    border-radius:11px;padding:4px;margin-bottom:14px}
+  .module-switch .mod{border:0;background:transparent;color:var(--muted);font-family:var(--sans);
+    font-weight:700;font-size:13px;padding:8px 18px;border-radius:8px;cursor:pointer;transition:all .15s}
+  .module-switch .mod.on{background:var(--accent);color:#fff}
   .tab{flex:1;text-align:center}
   .tab{background:#fff;color:var(--accent);border:1px solid var(--line);
     border-radius:9px;padding:9px 16px;cursor:pointer;font-weight:600;font-size:14px;transition:all .15s}
@@ -206,13 +211,18 @@
       </div>
     </header>
 
+    <div class="module-switch" id="moduleSwitch">
+      <button id="mod-attendance" class="mod on" onclick="setModule('attendance')">Attendance</button>
+      <button id="mod-assignments" class="mod" onclick="setModule('assignments')">Assignments</button>
+    </div>
+
     <div class="tabs" id="tabs"></div>
 
     <!-- TUTOR: mark attendance -->
     <section id="view-mark" class="view hidden">
       <div class="card">
-        <h2>Mark attendance</h2>
-        <div class="sub">Choose country and batch, then set status only for the students you need. Unmarked students aren't saved.</div>
+        <h2 id="markHeading">Mark attendance</h2>
+        <div class="sub" id="markSub">Choose country and batch, then set status only for the students you need. Unmarked students aren't saved.</div>
         <div class="row">
           <div>
             <label class="f">Country <span class="lbl-spin" id="spin-mCountry"></span></label>
@@ -235,7 +245,7 @@
       <div class="card">
         <div id="roster"><div class="empty">Pick a batch to load students.</div></div>
         <div id="saveBar" class="hidden" style="margin-top:14px;text-align:right">
-          <button class="btn amber" onclick="saveAttendance()">Save attendance</button>
+          <button class="btn amber" id="saveBtn" onclick="saveAttendance()">Save attendance</button>
         </div>
       </div>
     </section>
@@ -243,7 +253,7 @@
     <!-- ADMIN: attendance trends -->
     <section id="view-attendance" class="view hidden">
       <div class="card">
-        <h2>Attendance trends</h2>
+        <h2 id="trendHeading">Attendance trends</h2>
         <div class="sub">Defaults to this month. Widen the filters (e.g. Month = All) for a longer trend.</div>
         <div class="row">
           <div>
@@ -306,6 +316,54 @@ let PROFILE = {};          // decoded token: name, email, picture
 let ME = null;
 let roster = [];           // current roster for marking
 let markState = {};        // id -> status
+
+// Active module: 'attendance' or 'assignments'. Labels swap based on this.
+let MODULE = 'attendance';
+const MOD_LABELS = {
+  attendance: {
+    markTab:'Mark attendance', trendTab:'Attendance trends',
+    markHeading:'Mark attendance',
+    markSub:"Choose country and batch, then set status only for the students you need. Unmarked students aren't saved.",
+    trendHeading:'Attendance trends',
+    pos:'Present', neg:'Absent', posShort:'Pres.', negShort:'Abs.',
+    posDates:'Present dates'
+  },
+  assignments: {
+    markTab:'Record submissions', trendTab:'Submission trends',
+    markHeading:'Record submissions',
+    markSub:"Choose country and batch, then set submission status only for the students you need. Unmarked students aren't saved.",
+    trendHeading:'Submission trends',
+    pos:'Submitted', neg:'Not submitted', posShort:'Sub.', negShort:'Not sub.',
+    posDates:'Submitted dates'
+  }
+};
+function L(){ return MOD_LABELS[MODULE]; }
+
+// Switch module: update labels, reset views, reload current tab's data.
+function setModule(mod){
+  if(mod===MODULE) return;
+  MODULE = mod;
+  document.getElementById('mod-attendance').classList.toggle('on', mod==='attendance');
+  document.getElementById('mod-assignments').classList.toggle('on', mod==='assignments');
+  applyModuleLabels();
+  const trendsOpen = !document.getElementById('view-attendance').classList.contains('hidden');
+  buildTabs();   // resets to the first tab (Mark) and shows it
+  // buildTabs already calls showView for the mark tab. If a batch is selected,
+  // reload the roster so its prefill reflects the new module.
+  if(document.getElementById('mBatch') && document.getElementById('mBatch').value){
+    loadRoster();
+  }
+}
+
+// Apply the current module's text to static headings/subtexts.
+function applyModuleLabels(){
+  const lab=L();
+  const mh=document.getElementById('markHeading'); if(mh) mh.textContent=lab.markHeading;
+  const ms=document.getElementById('markSub'); if(ms) ms.textContent=lab.markSub;
+  const th=document.getElementById('trendHeading'); if(th) th.textContent=lab.trendHeading;
+  const cs=document.getElementById('chartSub'); if(cs) cs.textContent=lab.pos+' % by month for the current selection.';
+  const sb=document.getElementById('saveBtn'); if(sb) sb.textContent = (MODULE==='assignments'?'Save submissions':'Save attendance');
+}
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
@@ -435,10 +493,21 @@ function startApp(){
   document.getElementById('ppEmail').textContent = ME.email;
   document.getElementById('ppRole').textContent = ME.role.toUpperCase();
 
-  // Build tabs by role
+  // Build tabs and apply module labels
+  applyModuleLabels();
+  buildTabs();
+
+  // default date = today
+  document.getElementById('mDate').value = new Date().toISOString().slice(0,10);
+  loadCountries();
+}
+
+// (Re)build the Mark / Trends tabs using the current module's labels.
+function buildTabs(){
+  const lab = L();
   const tabs = [];
-  if(ME.role==='tutor' || ME.role==='admin') tabs.push(['view-mark','Mark attendance']);
-  if(ME.role==='tutor' || ME.role==='admin'){ tabs.push(['view-attendance','Attendance trends']); }
+  if(ME.role==='tutor' || ME.role==='admin') tabs.push(['view-mark', lab.markTab]);
+  if(ME.role==='tutor' || ME.role==='admin') tabs.push(['view-attendance', lab.trendTab]);
   const tabBar = document.getElementById('tabs');
   tabBar.innerHTML='';
   tabs.forEach(([id,label],i)=>{
@@ -448,10 +517,6 @@ function startApp(){
     tabBar.appendChild(b);
   });
   showView(tabs[0][0], tabBar.firstChild);
-
-  // default date = today
-  document.getElementById('mDate').value = new Date().toISOString().slice(0,10);
-  loadCountries();
 }
 
 function showView(id, btn){
@@ -526,7 +591,7 @@ async function loadRoster(){
   box.innerHTML='<div class="empty"><span class="spin"></span> Loading roster…</div>';
   const [s, prior] = await Promise.all([
     apiGet({action:'students', batch, tutor}),
-    apiGet({action:'attendanceForDate', batch, date})
+    apiGet({action:'attendanceForDate', batch, date, module:MODULE})
   ]);
   roster = s.students || [];
   markState = {};
@@ -542,11 +607,12 @@ async function loadRoster(){
 function renderRoster(){
   if(!roster.length){ document.getElementById('roster').innerHTML='<div class="empty">No students for this selection.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
   let html = '<table><thead><tr><th>Student</th><th>Tutor</th><th>Status</th></tr></thead><tbody>';
+  const lab = L();
   roster.forEach(st=>{
     const ms = markState[st.id]; const s = ms.status; const c = ms.count||1;
-    // Always render the count selector to reserve its space; hide it unless Present
-    // so the row never shifts when toggling Present <-> Absent.
-    const countSel = `<div class="count-sel" style="${s==='Present'?'':'visibility:hidden'}">
+    // Count selector applies to the positive status only (Present / Submitted).
+    // Always rendered (space reserved); hidden unless the positive status is set.
+    const countSel = `<div class="count-sel" style="${s===lab.pos?'':'visibility:hidden'}">
         <button class="${c===1?'on':''}" onclick="setCount('${st.id}',1)">×1</button>
         <button class="${c===2?'on':''}" onclick="setCount('${st.id}',2)">×2</button>
       </div>`;
@@ -554,8 +620,8 @@ function renderRoster(){
       <td class="stu-tutor">${st.tutor||'—'}</td>
       <td><div class="status-cell">
         <div class="seg">
-          <button class="present ${s==='Present'?'on':''}" onclick="setStatus('${st.id}','Present')"><span class="lbl-full">Present</span><span class="lbl-short">Pres.</span></button>
-          <button class="absent ${s==='Absent'?'on':''}" onclick="setStatus('${st.id}','Absent')"><span class="lbl-full">Absent</span><span class="lbl-short">Abs.</span></button>
+          <button class="present ${s===lab.pos?'on':''}" onclick="setStatus('${st.id}','${lab.pos}')"><span class="lbl-full">${lab.pos}</span><span class="lbl-short">${lab.posShort}</span></button>
+          <button class="absent ${s===lab.neg?'on':''}" onclick="setStatus('${st.id}','${lab.neg}')"><span class="lbl-full">${lab.neg}</span><span class="lbl-short">${lab.negShort}</span></button>
         </div>${countSel}
       </div></td></tr>`;
   });
@@ -567,8 +633,8 @@ function setStatus(id,status){
   // Tapping the active status again clears it (so a wrongly-marked student can be unset)
   if(markState[id].status===status){ markState[id].status=null; }
   else { markState[id].status=status; }
-  // Count applies to Present only; reset to 1 otherwise
-  if(markState[id].status!=='Present'){ markState[id].count=1; }
+  // Count applies to the positive status only (Present / Submitted); reset otherwise
+  if(markState[id].status!==L().pos){ markState[id].count=1; }
   renderRoster();
 }
 function setCount(id,n){ markState[id].count=n; renderRoster(); }
@@ -581,7 +647,7 @@ async function saveAttendance(){
     .map(st=>({id:st.id, status:markState[st.id].status, count:markState[st.id].count||1}));
   if(!records.length){ toast('Nothing marked to save.'); return; }
   toast('Saving…');
-  const r = await apiPost({action:'markAttendance', date, records});
+  const r = await apiPost({action:'markAttendance', date, records, module:MODULE});
   toast(r.ok ? `Saved ${r.saved} student(s) for ${date}` : 'Save failed: '+(r.error||'?'));
 }
 
@@ -724,7 +790,7 @@ async function loadTrend(){
   const year = document.getElementById('aYear').value;
   const card = document.getElementById('trendCard');
   card.innerHTML='<div class="empty"><span class="spin"></span> Loading…</div>';
-  const r = await apiGet({action:'attendanceTrend', studentId, batch, country, tutor, month, year});
+  const r = await apiGet({action:'attendanceTrend', studentId, batch, country, tutor, month, year, module:MODULE});
   if(!r.ok){ card.innerHTML='<div class="empty">'+(r.error||'Error')+'</div>'; drawTrendChart([]); return; }
   const t = r.trend||[];
   if(!t.length){ card.innerHTML='<div class="empty">No attendance recorded for this selection yet.</div>'; drawTrendChart([]); return; }
@@ -732,10 +798,10 @@ async function loadTrend(){
   const single = !!studentId; // drill-down only meaningful for a single student
   let html = `<div class="stat">
     <div class="s"><div class="n">${totT}</div><div class="l">Sessions logged</div></div>
-    <div class="s"><div class="n amber">${totT?Math.round(totP/totT*100):0}%</div><div class="l">Overall present</div></div>
+    <div class="s"><div class="n amber">${totT?Math.round(totP/totT*100):0}%</div><div class="l">Overall ${L().pos.toLowerCase()}</div></div>
   </div>`;
-  if(single){ html += `<div class="sub" style="margin:-4px 0 10px">Tip: tap a month to see the Present dates.</div>`; }
-  html += `<div class="table-wrap"><table><thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>%</th><th></th></tr></thead><tbody>`;
+  if(single){ html += `<div class="sub" style="margin:-4px 0 10px">Tip: tap a month to see the ${L().posDates.toLowerCase()}.</div>`; }
+  html += `<div class="table-wrap"><table><thead><tr><th>Month</th><th>${L().pos}</th><th>${L().neg}</th><th>%</th><th></th></tr></thead><tbody>`;
   t.forEach(x=>{
     const clickable = single ? `class="month-row" onclick="toggleMonthDates(this,'${x.month}')" style="cursor:pointer"` : '';
     html += `<tr ${clickable}><td>${single?'<span class="caret">▸</span> ':''}${fmtMonth(x.month)}</td><td>${x.present}</td><td>${x.absent}</td>
@@ -762,9 +828,9 @@ async function toggleMonthDates(rowEl, ym){
   tr.className='dates-row';
   tr.innerHTML = `<td colspan="5"><span class="spin"></span> Loading dates…</td>`;
   rowEl.parentNode.insertBefore(tr, rowEl.nextSibling);
-  const r = await apiGet({action:'presentDates', studentId, ym});
+  const r = await apiGet({action:'presentDates', studentId, ym, module:MODULE});
   const dates = (r.ok && r.dates) ? r.dates : [];
-  if(!dates.length){ tr.innerHTML = `<td colspan="5" class="dates-cell"><em>No Present dates this month.</em></td>`; return; }
+  if(!dates.length){ tr.innerHTML = `<td colspan="5" class="dates-cell"><em>No ${L().posDates.toLowerCase()} this month.</em></td>`; return; }
   const chips = dates.map(d=>{
     const dt = new Date(d.date+'T00:00:00');
     const lbl = isNaN(dt)? d.date : dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
@@ -797,9 +863,9 @@ function drawTrendChart(t){
   trendChartObj = new Chart(cv, {
     type:'bar',
     data:{ labels, datasets:[
-      { label:'Present', data:t.map(x=>x.present), backgroundColor:good, stack:'s', order:2 },
-      { label:'Absent', data:t.map(x=>x.absent), backgroundColor:bad, stack:'s', order:2 },
-      { type:'line', label:'Present %', data:t.map(x=>x.pct), borderColor:accent, backgroundColor:accent,
+      { label:L().pos, data:t.map(x=>x.present), backgroundColor:good, stack:'s', order:2 },
+      { label:L().neg, data:t.map(x=>x.absent), backgroundColor:bad, stack:'s', order:2 },
+      { type:'line', label:L().pos+' %', data:t.map(x=>x.pct), borderColor:accent, backgroundColor:accent,
         yAxisID:'y2', tension:.3, pointRadius:4, fill:false, order:1 }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
@@ -809,7 +875,7 @@ function drawTrendChart(t){
         x:{ stacked:true, ticks:{font:{family:'JetBrains Mono'}} },
         y:{ stacked:true, beginAtZero:true, title:{display:true,text:'Sessions'} },
         y2:{ position:'right', beginAtZero:true, max:100, grid:{drawOnChartArea:false},
-             title:{display:true,text:'Present %'}, ticks:{callback:v=>v+'%'} }
+             title:{display:true,text:L().pos+' %'}, ticks:{callback:v=>v+'%'} }
       }
     }
   });

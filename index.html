@@ -222,19 +222,19 @@
     <section id="view-mark" class="view hidden">
       <div class="card">
         <h2 id="markHeading">Mark attendance</h2>
-        <div class="sub" id="markSub">Choose country and batch, then set status only for the students you need. Unmarked students aren't saved.</div>
+        <div class="sub" id="markSub">Filter by country, batch, or tutor (any combination), then set status only for the students you need. Unmarked students aren't saved.</div>
         <div class="row">
           <div>
             <label class="f">Country <span class="lbl-spin" id="spin-mCountry"></span></label>
-            <select id="mCountry" onchange="onMarkCountryChange()"></select>
+            <select id="mCountry" onchange="onMarkFilterChange('mCountry')"></select>
           </div>
           <div>
             <label class="f">Batch <span class="lbl-spin" id="spin-mBatch"></span></label>
-            <select id="mBatch" onchange="onMarkBatchChange()"><option value="">Select country first…</option></select>
+            <select id="mBatch" onchange="onMarkFilterChange('mBatch')"></select>
           </div>
           <div>
             <label class="f">Tutor</label>
-            <select id="mTutor" onchange="loadRoster()"><option value="">All tutors</option></select>
+            <select id="mTutor" onchange="onMarkFilterChange('mTutor')"><option value="">All tutors</option></select>
           </div>
           <div>
             <label class="f">Date</label>
@@ -323,7 +323,7 @@ const MOD_LABELS = {
   attendance: {
     markTab:'Mark attendance', trendTab:'Attendance trends',
     markHeading:'Mark attendance',
-    markSub:"Choose country and batch, then set status only for the students you need. Unmarked students aren't saved.",
+    markSub:"Filter by country, batch, or tutor (any combination), then set status only for the students you need. Unmarked students aren't saved.",
     trendHeading:'Attendance trends',
     pos:'Present', neg:'Absent', posShort:'Pres.', negShort:'Abs.',
     posDates:'Present dates'
@@ -331,7 +331,7 @@ const MOD_LABELS = {
   assignments: {
     markTab:'Demo submissions', trendTab:'Submission trends',
     markHeading:'Demo submissions',
-    markSub:"Choose country and batch, then set submission status only for the students you need. Unmarked students aren't saved.",
+    markSub:"Filter by country, batch, or tutor (any combination), then set submission status only for the students you need. Unmarked students aren't saved.",
     trendHeading:'Submission trends',
     pos:'Submitted', neg:'Not submitted', posShort:'Sub.', negShort:'Not sub.',
     posDates:'Submitted dates'
@@ -348,11 +348,12 @@ function setModule(mod){
   applyModuleLabels();
   const trendsOpen = !document.getElementById('view-attendance').classList.contains('hidden');
   buildTabs();   // resets to the first tab (Mark) and shows it
-  // buildTabs already calls showView for the mark tab. If a batch is selected,
+  // buildTabs already calls showView for the mark tab. If any filter is set,
   // reload the roster so its prefill reflects the new module.
-  if(document.getElementById('mBatch') && document.getElementById('mBatch').value){
-    loadRoster();
-  }
+  const anyFilter = ['mCountry','mBatch','mTutor'].some(id=>{
+    const el=document.getElementById(id); return el && el.value;
+  });
+  if(anyFilter){ loadRoster(); }
 }
 
 // Apply the current module's text to static headings/subtexts.
@@ -390,7 +391,7 @@ function signOut(){
   try{ if(window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); }catch(e){}
   // Clear all in-memory state so the next login starts fresh (no stale data).
   ID_TOKEN = null; PROFILE = {}; ME = null;
-  roster = []; markState = {}; trendStudents = [];
+  roster = []; markState = {}; trendStudents = []; markStudents = [];
   lastTrendData = null;
   if(trendChartObj){ try{ trendChartObj.destroy(); }catch(e){} trendChartObj = null; }
   // Reset mark-attendance and trends filter controls to their initial state
@@ -499,7 +500,7 @@ function startApp(){
 
   // default date = today
   document.getElementById('mDate').value = new Date().toISOString().slice(0,10);
-  loadCountries();
+  loadMarkFilters();
 }
 
 // (Re)build the Mark / Trends tabs using the current module's labels.
@@ -527,78 +528,103 @@ function showView(id, btn){
   if(id==='view-attendance') initTrendStudents();
 }
 
+// ---------- mark/demo: independent smart filters ----------
 // Combine a country and a batch timing into the internal key the backend uses.
 function makeBatchKey(country, timing){
   if(country && timing) return country + ' · ' + timing;
   return timing || country || '';
 }
+let markStudents = [];   // full active student list for the mark/demo screen
 
-// ---------- countries, batches & roster ----------
-async function loadCountries(){
-  const sel = document.getElementById('mCountry');
-  sel.innerHTML = '<option>Loading…</option>'; sel.disabled = true; labelSpin('mCountry', true);
-  const r = await apiGet({action:'countries'});
-  labelSpin('mCountry', false);
-  if(!r.ok || !r.countries){
-    sel.innerHTML = '<option value="">Couldn’t load — tap to retry</option>';
-    sel.disabled = false; sel.onclick = ()=>{ sel.onclick=null; loadCountries(); };
-    return;
-  }
-  sel.disabled = false;
-  sel.innerHTML = '<option value="">Select a country…</option>' +
-    r.countries.map(c=>`<option>${c}</option>`).join('');
+// Load the full active student list once, then populate all three dropdowns.
+async function loadMarkFilters(){
+  ['mCountry','mBatch','mTutor'].forEach(id=>{ const e=document.getElementById(id); e.disabled=true; });
+  labelSpin('mCountry', true); labelSpin('mBatch', true); labelSpin('mTutor', true);
+  document.getElementById('mCountry').innerHTML='<option>Loading…</option>';
+  document.getElementById('mBatch').innerHTML='<option>Loading…</option>';
+  document.getElementById('mTutor').innerHTML='<option>Loading…</option>';
+  const r = await apiGet({action:'students'});
+  labelSpin('mCountry', false); labelSpin('mBatch', false); labelSpin('mTutor', false);
+  markStudents = (r.students)||[];
+  ['mCountry','mBatch','mTutor'].forEach(id=>{ document.getElementById(id).disabled=false; });
+  // Clear the "Loading…" placeholders so their .value doesn't pollute the narrowing.
+  document.getElementById('mCountry').innerHTML='<option value=""></option>';
+  document.getElementById('mBatch').innerHTML='<option value=""></option>';
+  document.getElementById('mTutor').innerHTML='<option value=""></option>';
+  narrowMarkFilters(null);   // populate all three with full lists
 }
 
-// When country changes: load that country's batch timings
-async function onMarkCountryChange(){
-  const country = document.getElementById('mCountry').value;
-  const bsel = document.getElementById('mBatch');
-  document.getElementById('mTutor').innerHTML = '<option value="">All tutors</option>';
-  if(!country){ bsel.innerHTML = '<option value="">Select country first…</option>'; loadRoster(); return; }
-  bsel.innerHTML = '<option>Loading batches…</option>'; bsel.disabled = true; labelSpin('mBatch', true);
-  const r = await apiGet({action:'batches', country});
-  labelSpin('mBatch', false);
-  bsel.disabled = false;
-  bsel.innerHTML = '<option value="">Select a batch…</option>' +
-    ((r.batches)||[]).map(b=>`<option>${b}</option>`).join('');
-  loadRoster();
+// Recompute each dropdown's options based on the OTHER two current selections,
+// preserving the current selection where still valid. `changed` is the id just changed (or null).
+function narrowMarkFilters(changed){
+  const cv = document.getElementById('mCountry').value;
+  const bv = document.getElementById('mBatch').value;   // full batch key
+  const tv = document.getElementById('mTutor').value;
+
+  // Helper: does a student match a given subset of filters?
+  const match = (st, useC, useB, useT)=>{
+    if(useC && cv && st.country!==cv) return false;
+    if(useB && bv && st.batch!==bv) return false;
+    if(useT && tv && st.tutor!==tv) return false;
+    return true;
+  };
+  // Country options: filtered by batch+tutor (not by country itself)
+  const countries=[...new Set(markStudents.filter(s=>match(s,false,true,true)).map(s=>s.country).filter(Boolean))].sort();
+  // Batch options: filtered by country+tutor
+  const batches=[...new Set(markStudents.filter(s=>match(s,true,false,true)).map(s=>s.batch).filter(Boolean))].sort();
+  // Tutor options: filtered by country+batch
+  const tutors=[...new Set(markStudents.filter(s=>match(s,true,true,false)).map(s=>s.tutor).filter(Boolean))].sort();
+
+  fillSelect('mCountry','All countries',countries,cv);
+  fillSelect('mBatch','All batches',batches,bv);
+  fillSelect('mTutor','All tutors',tutors,tv);
 }
 
-// When batch changes: refresh the tutor list for that batch, then load roster
-async function onMarkBatchChange(){
-  const country = document.getElementById('mCountry').value;
-  const timing = document.getElementById('mBatch').value;
-  const batch = makeBatchKey(country, timing);
-  const tsel = document.getElementById('mTutor');
-  tsel.innerHTML = '<option value="">All tutors</option>';
-  if(batch){
-    const t = await apiGet({action:'tutors', batch});
-    (t.tutors||[]).forEach(name=>{
-      const o=document.createElement('option'); o.value=name; o.textContent=name; tsel.appendChild(o);
-    });
-  }
+// Populate a <select> with an "all" option + values, keeping `current` selected if present.
+function fillSelect(id, allLabel, values, current){
+  const sel=document.getElementById(id);
+  let html='<option value="">'+allLabel+'</option>';
+  values.forEach(v=>{ html+=`<option${v===current?' selected':''}>${v}</option>`; });
+  sel.innerHTML=html;
+  if(current && !values.includes(current)) sel.value='';   // selection no longer valid
+}
+
+// Any filter changed → re-narrow the others, then load the roster.
+function onMarkFilterChange(changedId){
+  narrowMarkFilters(changedId);
   loadRoster();
 }
 
 async function loadRoster(){
   const country = document.getElementById('mCountry').value;
-  const timing = document.getElementById('mBatch').value;
-  const batch = makeBatchKey(country, timing);
+  const batch = document.getElementById('mBatch').value;   // full key, or ''
   const tutor = document.getElementById('mTutor').value;
   const date = document.getElementById('mDate').value;
   const box = document.getElementById('roster');
-  if(!timing){ box.innerHTML='<div class="empty">Pick a country and batch to load students.</div>'; document.getElementById('saveBar').classList.add('hidden'); return;}
+
+  // Need at least one filter set.
+  if(!country && !batch && !tutor){
+    box.innerHTML='<div class="empty">Pick a country, batch, or tutor to load students.</div>';
+    document.getElementById('saveBar').classList.add('hidden'); return;
+  }
   box.innerHTML='<div class="empty"><span class="spin"></span> Loading roster…</div>';
-  const [s, prior] = await Promise.all([
-    apiGet({action:'students', batch, tutor}),
-    apiGet({action:'attendanceForDate', batch, date, module:MODULE})
-  ]);
-  roster = s.students || [];
+
+  // Roster comes from the already-loaded student list (filtered locally).
+  roster = markStudents.filter(st=>{
+    if(country && st.country!==country) return false;
+    if(batch && st.batch!==batch) return false;
+    if(tutor && st.tutor!==tutor) return false;
+    return true;
+  });
+  // Prefill saved marks for the date. Send batch if a single batch is selected;
+  // otherwise omit it so prefill covers all matching students for that date.
+  const prior = await apiGet(batch
+    ? {action:'attendanceForDate', batch, date, module:MODULE}
+    : {action:'attendanceForDate', date, module:MODULE});
   markState = {};
   const marked = prior.marked || {};
   roster.forEach(st=>{
     const m = marked[st.id];
-    // No default status — only pre-fill what was previously saved.
     markState[st.id] = m ? { status: m.status, count: m.count||1 } : { status: null, count: 1 };
   });
   renderRoster();

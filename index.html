@@ -18,8 +18,7 @@
     --amber:#eab43a; --amber-light:#fdf6e3; --amber-bg:#faedc5; --amber-d:#9a6f12;
     --good:#8ab600; --good-light:#f0f8e0; --bad:#d76241; --bad-light:#fef0ed;
     --warn:#eab43a;
-    --shadow:0 2px 16px rgba(0,143,160,.08); --shadow-lg:0 8px 32px rgba(0,143,
-160,.12);
+    --shadow:0 2px 16px rgba(0,143,160,.08); --shadow-lg:0 8px 32px rgba(0,143,160,.12);
     --mono:'JetBrains Mono',monospace; --sans:'DM Sans',system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -902,6 +901,17 @@ function buildLineFor(s){
   const daysWord = (MODULE==='assignments') ? 'submitted' : 'attended';
   return `${s.name}: ${s.days} ${daysWord}, ${s.pct}%`;
 }
+// Human-readable period from the Year/Month filters, for the WhatsApp message.
+function periodLabel(){
+  const MONTHS_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const m = document.getElementById('aMonth').value;   // '' or '1'..'12'
+  const y = document.getElementById('aYear').value;    // '' or e.g. '2026'
+  const mName = m ? MONTHS_FULL[parseInt(m,10)-1] : '';
+  if(mName && y) return `${mName} ${y}`;
+  if(!mName && y) return `${y} (all months)`;
+  if(mName && !y) return `${mName} (all years)`;
+  return 'All time';
+}
 function shareText(text){
   // Prefer native share on mobile; fall back to wa.me link
   if(navigator.share){
@@ -914,13 +924,13 @@ function openWa(text){
 function shareWhatsAppOne(i){
   const s = summaryRows[i]; if(!s) return;
   const title = (MODULE==='assignments') ? 'Demo submission update' : 'Attendance update';
-  shareText(`*${title}*\n${buildLineFor(s)}`);
+  shareText(`*${title}*\nPeriod: ${periodLabel()}\n\n${buildLineFor(s)}`);
 }
 function shareWhatsAppAll(){
   if(!summaryRows.length) return;
   const title = (MODULE==='assignments') ? 'Demo submission summary' : 'Attendance summary';
   const expected = 4 * monthsInSpan();
-  const header = `*${title}*\nExpected: ${expected} ${MODULE==='assignments'?'submissions':'classes'}\n`;
+  const header = `*${title}*\nPeriod: ${periodLabel()}\nExpected: ${expected} ${MODULE==='assignments'?'submissions':'classes'}\n`;
   const body = summaryRows.map(buildLineFor).join('\n');
   shareText(header + '\n' + body);
 }

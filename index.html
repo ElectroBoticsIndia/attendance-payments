@@ -18,7 +18,8 @@
     --amber:#eab43a; --amber-light:#fdf6e3; --amber-bg:#faedc5; --amber-d:#9a6f12;
     --good:#8ab600; --good-light:#f0f8e0; --bad:#d76241; --bad-light:#fef0ed;
     --warn:#eab43a;
-    --shadow:0 2px 16px rgba(0,143,160,.08); --shadow-lg:0 8px 32px rgba(0,143,160,.12);
+    --shadow:0 2px 16px rgba(0,143,160,.08); --shadow-lg:0 8px 32px rgba(0,143,
+160,.12);
     --mono:'JetBrains Mono',monospace; --sans:'DM Sans',system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -116,6 +117,11 @@
   .dates-cell{padding:12px!important}
   .date-chip{display:inline-block;background:#fff;border:1px solid var(--line);border-radius:999px;
     padding:4px 11px;margin:3px 4px 3px 0;font-size:12px;font-family:var(--mono);color:var(--accent-dark)}
+  /* Per-student health table columns */
+  .health-table th,.health-table td{vertical-align:middle}
+  .health-table .days-col{font-family:var(--mono);font-weight:700;text-align:center}
+  .health-table .dates-col{min-width:240px;max-width:420px;line-height:1.9}
+  .no-dates{color:var(--text-light)}
   .amberbox{font-family:var(--mono);font-weight:700;color:var(--amber-d);background:var(--amber-light);
     padding:2px 8px;border-radius:6px;display:inline-block}
   /* Per-student health view */
@@ -174,6 +180,11 @@
     table{font-size:13px}
     th,td{padding:8px 6px}
     .stu-tutor{font-size:12px}
+    /* health table: stack header, allow dates to scroll, keep chips compact */
+    .trend-head{flex-direction:column;align-items:stretch;gap:8px}
+    .wa-btn{justify-content:center}
+    .health-table .dates-col{min-width:180px;max-width:none;line-height:1.8}
+    .date-chip{padding:3px 8px;font-size:11px;margin:2px 3px 2px 0}
     /* keep the % progress bar inside the card */
     .bar{display:none}
     td[style*="160px"]{width:auto!important}
@@ -843,28 +854,38 @@ async function loadTrend(){
   if(!list.length){ card.innerHTML='<div class="empty">No students match this selection.</div>'; summaryRows=[]; return; }
 
   const expected = 4 * monthsInSpan();
-  const lab = L();
   const daysLabel = (MODULE==='assignments') ? 'Days submitted' : 'Days attended';
+  const datesLabel = (MODULE==='assignments') ? 'Submitted dates' : 'Attended dates';
 
-  // Compute % + health for each, keep order; cache for sharing
+  // Compute % + health (for the % badge color) for each, keep order; cache for sharing
   summaryRows = list.map(s=>{
     const pct = expected ? Math.round(s.days / expected * 100) : 0;
-    return { id:s.id, name:s.name, tutor:s.tutor, days:s.days, pct, tier:healthTier(pct) };
+    return { id:s.id, name:s.name, tutor:s.tutor, days:s.days, dates:s.dates||[], pct, tier:healthTier(pct) };
   });
+
+  // Format a list of {date,count} into "3 Jun, 10 Jun ×2"
+  const fmtDates = (arr)=>{
+    if(!arr.length) return '<span class="no-dates">—</span>';
+    return arr.map(d=>{
+      const dt = new Date(d.date+'T00:00:00');
+      const lbl = isNaN(dt) ? d.date : dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      return `<span class="date-chip">${lbl}${d.count>1?` ×${d.count}`:''}</span>`;
+    }).join(' ');
+  };
 
   // Header with a "Share full list" WhatsApp button
   let html = `<div class="trend-head">
       <div class="trend-meta">${summaryRows.length} student${summaryRows.length>1?'s':''} · expected ${expected} ${MODULE==='assignments'?'submissions':'classes'} (4 × ${monthsInSpan()} month${monthsInSpan()>1?'s':''})</div>
       <button class="wa-btn" onclick="shareWhatsAppAll()">${waIcon()} Share list</button>
     </div>`;
-  html += `<div class="table-wrap"><table><thead><tr>
-      <th>Student</th><th>${daysLabel}</th><th>%</th><th>Health</th><th></th></tr></thead><tbody>`;
+  html += `<div class="table-wrap"><table class="health-table"><thead><tr>
+      <th>Student</th><th>${daysLabel}</th><th>${datesLabel}</th><th>%</th><th></th></tr></thead><tbody>`;
   summaryRows.forEach((s,i)=>{
     html += `<tr>
       <td><div class="stu-name">${s.name}</div><div class="stu-id">${s.id}</div></td>
-      <td>${s.days}</td>
+      <td class="days-col">${s.days}</td>
+      <td class="dates-col">${fmtDates(s.dates)}</td>
       <td><span class="pct-badge ${s.tier}">${s.pct}%</span></td>
-      <td><span class="health-dot ${s.tier}" title="${s.tier}"></span></td>
       <td><button class="wa-icon" title="Share on WhatsApp" onclick="shareWhatsAppOne(${i})">${waIcon()}</button></td>
     </tr>`;
   });
@@ -879,7 +900,7 @@ function waIcon(){
 }
 function buildLineFor(s){
   const daysWord = (MODULE==='assignments') ? 'submitted' : 'attended';
-  return `${healthEmoji(s.pct)} ${s.name}: ${s.days} ${daysWord}, ${s.pct}%`;
+  return `${s.name}: ${s.days} ${daysWord}, ${s.pct}%`;
 }
 function shareText(text){
   // Prefer native share on mobile; fall back to wa.me link
